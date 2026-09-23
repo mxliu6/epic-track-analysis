@@ -56,6 +56,18 @@ python analyze_track_performance.py \
 Outputs include efficiency and purity plots, a machine-readable JSON summary,
 binned CSV metrics, a true-versus-reconstructed pT response matrix, and (when
 reconstructed PDG is available) PID purity and a PID confusion table.
+Matched tracks also produce `pt_resolution_vs_pt.png` and
+`momentum_resolution_vs_pt.png`. Each shows the median residual (bias) and
+`sigma68 = (q84 - q16)/2` versus true pT by truth species; the underlying counts,
+robust widths, means, and standard deviations are written to
+`momentum_resolution.csv`.
+
+Electron and positron results are also separated using the signed truth PDG code
+(`11` for electrons and `-11` for positrons). The dedicated outputs are
+`electron_positron_tracking_efficiency.png`,
+`electron_positron_pt_resolution_vs_pt.png`, and
+`electron_positron_momentum_resolution_vs_pt.png`. The general species plots keep
+the charge-combined category under the label `electron_or_positron`.
 
 ## Definitions
 

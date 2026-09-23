@@ -26,7 +26,8 @@ import numpy as np
 import uproot
 
 
-SPECIES = {11: "electron", 13: "muon", 211: "pion", 321: "kaon", 2212: "proton"}
+SPECIES = {11: "electron_or_positron", 13: "muon", 211: "pion", 321: "kaon", 2212: "proton"}
+ELECTRON_CHARGES = {11: "electron", -11: "positron"}
 RECO_COLLECTIONS = (
     ("ReconstructedChargedParticles", "ReconstructedChargedParticleAssociations"),
     ("ReconstructedChargedWithoutPIDParticles", "ReconstructedChargedWithoutPIDParticleAssociations"),
@@ -115,6 +116,48 @@ def plot_curves(output: Path, bins: np.ndarray, curves: dict[str, tuple[np.ndarr
     plt.close(fig)
 
 
+def resolution_statistics(values: list[list[float]], min_entries: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    count = np.asarray([len(v) for v in values], dtype=int)
+    median = np.full(len(values), np.nan)
+    sigma68 = np.full(len(values), np.nan)
+    mean = np.full(len(values), np.nan)
+    rms = np.full(len(values), np.nan)
+    for i, entries in enumerate(values):
+        if len(entries) < min_entries:
+            continue
+        data = np.asarray(entries)
+        q16, q50, q84 = np.quantile(data, [0.16, 0.50, 0.84])
+        median[i] = q50
+        sigma68[i] = 0.5 * (q84 - q16)
+        mean[i] = np.mean(data)
+        rms[i] = np.std(data)
+    return count, median, sigma68, mean, rms
+
+
+def plot_resolution(
+    output: Path,
+    bins: np.ndarray,
+    residuals: dict[str, list[list[float]]],
+    min_entries: int,
+    residual_label: str,
+) -> None:
+    centers = 0.5 * (bins[:-1] + bins[1:])
+    fig, (bias_ax, width_ax) = plt.subplots(2, 1, figsize=(7.2, 7.2), sharex=True)
+    for species, values in residuals.items():
+        _, median, sigma68, _, _ = resolution_statistics(values, min_entries)
+        bias_ax.plot(centers, median, marker="o", ms=3, label=species)
+        width_ax.plot(centers, sigma68, marker="o", ms=3, label=species)
+    bias_ax.axhline(0, color="black", lw=0.8)
+    bias_ax.set_ylabel(f"Median {residual_label}")
+    width_ax.set(xlabel=r"True $p_T$ [GeV]", ylabel=r"Resolution $\sigma_{68}$")
+    for ax in (bias_ax, width_ax):
+        ax.grid(alpha=0.25)
+    bias_ax.legend(ncol=2, fontsize=9)
+    fig.tight_layout()
+    fig.savefig(output, dpi=160)
+    plt.close(fig)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("files", nargs="+", help="EICrecon EDM4eic ROOT file(s)")
@@ -123,6 +166,7 @@ def main() -> None:
     parser.add_argument("--eta-min", type=float, default=-3.5)
     parser.add_argument("--eta-max", type=float, default=3.5)
     parser.add_argument("--min-weight", type=float, default=0.0)
+    parser.add_argument("--min-resolution-entries", type=int, default=5)
     parser.add_argument("--step-size", default="100 MB")
     args = parser.parse_args()
 
@@ -137,12 +181,28 @@ def main() -> None:
         name: {"truth": np.zeros(len(bins) - 1, int), "found": np.zeros(len(bins) - 1, int)}
         for name in SPECIES.values()
     }
+    electron_charge_counts = {
+        name: {"truth": np.zeros(len(bins) - 1, int), "found": np.zeros(len(bins) - 1, int)}
+        for name in ELECTRON_CHARGES.values()
+    }
     purity_den = np.zeros(len(bins) - 1, int)
     purity_num = np.zeros(len(bins) - 1, int)
     pt_response = np.zeros((len(bins) - 1, len(bins) - 1), int)
     pid_den = {name: np.zeros(len(bins) - 1, int) for name in SPECIES.values()}
     pid_num = {name: np.zeros(len(bins) - 1, int) for name in SPECIES.values()}
     confusion: defaultdict[tuple[int, int], int] = defaultdict(int)
+    pt_residuals = {
+        name: [[] for _ in range(len(bins) - 1)] for name in SPECIES.values()
+    }
+    momentum_residuals = {
+        name: [[] for _ in range(len(bins) - 1)] for name in SPECIES.values()
+    }
+    electron_charge_pt_residuals = {
+        name: [[] for _ in range(len(bins) - 1)] for name in ELECTRON_CHARGES.values()
+    }
+    electron_charge_momentum_residuals = {
+        name: [[] for _ in range(len(bins) - 1)] for name in ELECTRON_CHARGES.values()
+    }
     totals = defaultdict(int)
 
     sources = [f"{path}:events" for path in args.files]
@@ -198,12 +258,34 @@ def main() -> None:
             if response_rec:
                 response_sim = [best_truth[r] for r in response_rec]
                 pt_response += np.histogram2d(mc_pt[response_sim], reco_pt[response_rec], bins=(bins, bins))[0].astype(int)
+                mc_p = np.sqrt(mc_px**2 + mc_py**2 + mc_pz**2)
+                reco_p = np.sqrt(reco_px**2 + reco_py**2 + reco_pz**2)
+                for r, s in zip(response_rec, response_sim):
+                    species = SPECIES.get(abs(int(mc_pdg[s])))
+                    ibin = int(np.searchsorted(bins, mc_pt[s], side="right") - 1)
+                    if species is None or not 0 <= ibin < len(bins) - 1 or mc_pt[s] <= 0 or mc_p[s] <= 0:
+                        continue
+                    pt_residuals[species][ibin].append(float((reco_pt[r] - mc_pt[s]) / mc_pt[s]))
+                    momentum_residuals[species][ibin].append(float((reco_p[r] - mc_p[s]) / mc_p[s]))
+                    charge_species = ELECTRON_CHARGES.get(int(mc_pdg[s]))
+                    if charge_species:
+                        electron_charge_pt_residuals[charge_species][ibin].append(
+                            float((reco_pt[r] - mc_pt[s]) / mc_pt[s])
+                        )
+                        electron_charge_momentum_residuals[charge_species][ibin].append(
+                            float((reco_p[r] - mc_p[s]) / mc_p[s])
+                        )
 
             for pdg, name in SPECIES.items():
                 truth_mask = eligible & (np.abs(mc_pdg) == pdg)
                 found_mask = truth_mask & np.asarray([i in matched_sim for i in range(len(mc_pdg))])
                 counts[name]["truth"] += np.histogram(mc_pt[truth_mask], bins=bins)[0]
                 counts[name]["found"] += np.histogram(mc_pt[found_mask], bins=bins)[0]
+            for pdg, name in ELECTRON_CHARGES.items():
+                truth_mask = eligible & (mc_pdg == pdg)
+                found_mask = truth_mask & np.asarray([i in matched_sim for i in range(len(mc_pdg))])
+                electron_charge_counts[name]["truth"] += np.histogram(mc_pt[truth_mask], bins=bins)[0]
+                electron_charge_counts[name]["found"] += np.histogram(mc_pt[found_mask], bins=bins)[0]
 
             if schema["reco_pdg"]:
                 reco_pdg = event("reco_pdg", int)
@@ -224,6 +306,12 @@ def main() -> None:
         {name: (data["found"], data["truth"]) for name, data in counts.items()},
         "Tracking efficiency",
     )
+    plot_curves(
+        args.output / "electron_positron_tracking_efficiency.png",
+        bins,
+        {name: (data["found"], data["truth"]) for name, data in electron_charge_counts.items()},
+        "Tracking efficiency",
+    )
     plot_curves(args.output / "track_purity.png", bins, {"all charged": (purity_num, purity_den)}, "Matched-track purity")
     if schema["reco_pdg"]:
         plot_curves(args.output / "pid_purity.png", bins, {name: (pid_num[name], pid_den[name]) for name in SPECIES.values()}, "PID purity")
@@ -237,11 +325,43 @@ def main() -> None:
     fig.tight_layout()
     fig.savefig(args.output / "pt_response.png", dpi=160)
     plt.close(fig)
+    plot_resolution(
+        args.output / "pt_resolution_vs_pt.png",
+        bins,
+        pt_residuals,
+        args.min_resolution_entries,
+        r"$\Delta p_T/p_T$",
+    )
+    plot_resolution(
+        args.output / "momentum_resolution_vs_pt.png",
+        bins,
+        momentum_residuals,
+        args.min_resolution_entries,
+        r"$\Delta p/p$",
+    )
+    plot_resolution(
+        args.output / "electron_positron_pt_resolution_vs_pt.png",
+        bins,
+        electron_charge_pt_residuals,
+        args.min_resolution_entries,
+        r"$\Delta p_T/p_T$",
+    )
+    plot_resolution(
+        args.output / "electron_positron_momentum_resolution_vs_pt.png",
+        bins,
+        electron_charge_momentum_residuals,
+        args.min_resolution_entries,
+        r"$\Delta p/p$",
+    )
 
     with (args.output / "binned_metrics.csv").open("w", newline="") as stream:
         writer = csv.writer(stream)
         writer.writerow(["metric", "species", "pt_low", "pt_high", "numerator", "denominator", "value", "stat_error"])
         rows = [("tracking_efficiency", name, data["found"], data["truth"]) for name, data in counts.items()]
+        rows += [
+            ("tracking_efficiency_charge_separated", name, data["found"], data["truth"])
+            for name, data in electron_charge_counts.items()
+        ]
         rows.append(("matched_track_purity", "all", purity_num, purity_den))
         if schema["reco_pdg"]:
             rows += [("pid_purity", name, pid_num[name], pid_den[name]) for name in SPECIES.values()]
@@ -276,6 +396,22 @@ def main() -> None:
         for i in range(len(bins) - 1):
             for j in range(len(bins) - 1):
                 writer.writerow([bins[i], bins[i + 1], bins[j], bins[j + 1], pt_response[i, j]])
+    with (args.output / "momentum_resolution.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["residual", "species", "pt_low", "pt_high", "count", "median_bias", "sigma68", "mean", "standard_deviation"])
+        for residual_name, collection in (("delta_pt_over_pt", pt_residuals), ("delta_p_over_p", momentum_residuals)):
+            for species, values in collection.items():
+                count, median, sigma68, mean, rms = resolution_statistics(values, args.min_resolution_entries)
+                for i in range(len(bins) - 1):
+                    writer.writerow([residual_name, species, bins[i], bins[i + 1], count[i], median[i], sigma68[i], mean[i], rms[i]])
+        for residual_name, collection in (
+            ("delta_pt_over_pt_charge_separated", electron_charge_pt_residuals),
+            ("delta_p_over_p_charge_separated", electron_charge_momentum_residuals),
+        ):
+            for species, values in collection.items():
+                count, median, sigma68, mean, rms = resolution_statistics(values, args.min_resolution_entries)
+                for i in range(len(bins) - 1):
+                    writer.writerow([residual_name, species, bins[i], bins[i + 1], count[i], median[i], sigma68[i], mean[i], rms[i]])
     if confusion:
         with (args.output / "pid_confusion.csv").open("w", newline="") as stream:
             writer = csv.writer(stream)
