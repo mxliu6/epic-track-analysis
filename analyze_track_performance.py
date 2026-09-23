@@ -64,6 +64,13 @@ def discover(path: str) -> dict[str, str | None]:
         "mc_px": branch_name(names, ["MCParticles/MCParticles.momentum.x"], "MC px"),
         "mc_py": branch_name(names, ["MCParticles/MCParticles.momentum.y"], "MC py"),
         "mc_pz": branch_name(names, ["MCParticles/MCParticles.momentum.z"], "MC pz"),
+        "mc_parents_begin": branch_name(names, ["MCParticles/MCParticles.parents_begin"], "MC parents begin"),
+        "mc_parents_end": branch_name(names, ["MCParticles/MCParticles.parents_end"], "MC parents end"),
+        "mc_parent_indices": branch_name(
+            names,
+            ["_MCParticles_parents/_MCParticles_parents.index"],
+            "MC parent indices",
+        ),
         "reco_px": branch_name(names, [f"{reco}/{reco}.momentum.x"], "reco px"),
         "reco_py": branch_name(names, [f"{reco}/{reco}.momentum.y"], "reco py"),
         "reco_pz": branch_name(names, [f"{reco}/{reco}.momentum.z"], "reco pz"),
@@ -94,6 +101,42 @@ def discover(path: str) -> dict[str, str | None]:
 def eta(px: np.ndarray, py: np.ndarray, pz: np.ndarray) -> np.ndarray:
     pt = np.hypot(px, py)
     return np.arcsinh(np.divide(pz, pt, out=np.full_like(pz, np.inf, dtype=float), where=pt > 0))
+
+
+def find_scattered_electron(
+    pdg: np.ndarray,
+    status: np.ndarray,
+    pt: np.ndarray,
+    parents_begin: np.ndarray,
+    parents_end: np.ndarray,
+    parent_indices: np.ndarray,
+) -> tuple[int | None, int]:
+    """Find the highest-pT stable electron descended from a status-4 beam electron."""
+    beam_electrons = set(np.flatnonzero((pdg == 11) & (status == 4)).tolist())
+    if not beam_electrons:
+        return None, 0
+
+    def descends_from_beam(index: int) -> bool:
+        pending = list(parent_indices[parents_begin[index] : parents_end[index]])
+        visited: set[int] = set()
+        while pending:
+            parent = int(pending.pop())
+            if parent in beam_electrons:
+                return True
+            if parent in visited or not 0 <= parent < len(pdg):
+                continue
+            visited.add(parent)
+            pending.extend(parent_indices[parents_begin[parent] : parents_end[parent]])
+        return False
+
+    candidates = [
+        int(i)
+        for i in np.flatnonzero((pdg == 11) & (status == 1))
+        if descends_from_beam(int(i))
+    ]
+    if not candidates:
+        return None, 0
+    return max(candidates, key=lambda i: pt[i]), len(candidates)
 
 
 def binomial(numerator: np.ndarray, denominator: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -163,6 +206,7 @@ def main() -> None:
     parser.add_argument("files", nargs="+", help="EICrecon EDM4eic ROOT file(s)")
     parser.add_argument("-o", "--output", type=Path, default=Path("track_performance"))
     parser.add_argument("--pt-bins", default="0,0.2,0.5,1,2,3,5,7.5,10,15,20,30,50")
+    parser.add_argument("--eta-bins", default=None, help="comma-separated eta edges; default is 32 bins from -4 to 4")
     parser.add_argument("--eta-min", type=float, default=-3.5)
     parser.add_argument("--eta-max", type=float, default=3.5)
     parser.add_argument("--min-weight", type=float, default=0.0)
@@ -173,6 +217,13 @@ def main() -> None:
     bins = np.asarray([float(x) for x in args.pt_bins.split(",")])
     if len(bins) < 2 or np.any(np.diff(bins) <= 0):
         raise SystemExit("--pt-bins must be a strictly increasing comma-separated list")
+    eta_bins = (
+        np.asarray([float(x) for x in args.eta_bins.split(",")])
+        if args.eta_bins
+        else np.linspace(-4.0, 4.0, 33)
+    )
+    if len(eta_bins) < 2 or np.any(np.diff(eta_bins) <= 0):
+        raise SystemExit("--eta-bins must be a strictly increasing comma-separated list")
     args.output.mkdir(parents=True, exist_ok=True)
 
     schema = discover(args.files[0])
@@ -185,6 +236,18 @@ def main() -> None:
         name: {"truth": np.zeros(len(bins) - 1, int), "found": np.zeros(len(bins) - 1, int)}
         for name in ELECTRON_CHARGES.values()
     }
+    electron_charge_reco_pt = {
+        name: np.zeros(len(bins) - 1, int) for name in ELECTRON_CHARGES.values()
+    }
+    scattered_electron_truth_all = np.zeros(len(bins) - 1, int)
+    scattered_electron_truth_accepted = np.zeros(len(bins) - 1, int)
+    scattered_electron_found = np.zeros(len(bins) - 1, int)
+    scattered_electron_reco_pt = np.zeros(len(bins) - 1, int)
+    scattered_electron_eta_all = np.zeros(len(eta_bins) - 1, int)
+    scattered_electron_eta_accepted = np.zeros(len(eta_bins) - 1, int)
+    scattered_electron_reco_eta = np.zeros(len(eta_bins) - 1, int)
+    scattered_electron_truth_eta_pt = np.zeros((len(eta_bins) - 1, len(bins) - 1), int)
+    scattered_electron_reco_eta_pt = np.zeros((len(eta_bins) - 1, len(bins) - 1), int)
     purity_den = np.zeros(len(bins) - 1, int)
     purity_num = np.zeros(len(bins) - 1, int)
     pt_response = np.zeros((len(bins) - 1, len(bins) - 1), int)
@@ -219,6 +282,9 @@ def main() -> None:
             mc_px, mc_py, mc_pz = event("mc_px"), event("mc_py"), event("mc_pz")
             mc_pt = np.hypot(mc_px, mc_py)
             mc_eta = eta(mc_px, mc_py, mc_pz)
+            mc_parents_begin = event("mc_parents_begin", int)
+            mc_parents_end = event("mc_parents_end", int)
+            mc_parent_indices = event("mc_parent_indices", int)
             eligible = (mc_status == 1) & (np.abs(mc_charge) > 0) & (mc_eta >= args.eta_min) & (mc_eta <= args.eta_max)
 
             reco_px, reco_py, reco_pz = event("reco_px"), event("reco_py"), event("reco_pz")
@@ -238,6 +304,39 @@ def main() -> None:
                     best_truth[int(r)], best_weight[int(r)] = int(s), float(w)
             matched_rec = {r for r, s in pairs if eligible[s]}
             matched_sim = {s for r, s in pairs if reco_accept[r]}
+
+            scattered_index, scattered_candidates = find_scattered_electron(
+                mc_pdg,
+                mc_status,
+                mc_pt,
+                mc_parents_begin,
+                mc_parents_end,
+                mc_parent_indices,
+            )
+            if scattered_index is None:
+                totals["events_without_scattered_electron_lineage"] += 1
+            else:
+                totals["scattered_electrons_identified"] += 1
+                if scattered_candidates > 1:
+                    totals["events_with_multiple_beam_electron_descendants"] += 1
+                scattered_electron_truth_all += np.histogram([mc_pt[scattered_index]], bins=bins)[0]
+                scattered_electron_eta_all += np.histogram([mc_eta[scattered_index]], bins=eta_bins)[0]
+                if eligible[scattered_index]:
+                    scattered_electron_truth_accepted += np.histogram([mc_pt[scattered_index]], bins=bins)[0]
+                    scattered_electron_eta_accepted += np.histogram([mc_eta[scattered_index]], bins=eta_bins)[0]
+                    scattered_electron_truth_eta_pt += np.histogram2d(
+                        [mc_eta[scattered_index]], [mc_pt[scattered_index]], bins=(eta_bins, bins)
+                    )[0].astype(int)
+                    if scattered_index in matched_sim:
+                        scattered_electron_found += np.histogram([mc_pt[scattered_index]], bins=bins)[0]
+                        reco_candidates = [r for r, s in pairs if s == scattered_index and reco_accept[r]]
+                        if reco_candidates:
+                            best_reco = max(reco_candidates, key=lambda r: best_weight.get(r, -math.inf))
+                            scattered_electron_reco_pt += np.histogram([reco_pt[best_reco]], bins=bins)[0]
+                            scattered_electron_reco_eta += np.histogram([reco_eta[best_reco]], bins=eta_bins)[0]
+                            scattered_electron_reco_eta_pt += np.histogram2d(
+                                [reco_eta[best_reco]], [reco_pt[best_reco]], bins=(eta_bins, bins)
+                            )[0].astype(int)
 
             totals["truth_eligible"] += int(np.count_nonzero(eligible))
             totals["reco_accepted"] += int(np.count_nonzero(reco_accept))
@@ -269,6 +368,7 @@ def main() -> None:
                     momentum_residuals[species][ibin].append(float((reco_p[r] - mc_p[s]) / mc_p[s]))
                     charge_species = ELECTRON_CHARGES.get(int(mc_pdg[s]))
                     if charge_species:
+                        electron_charge_reco_pt[charge_species] += np.histogram([reco_pt[r]], bins=bins)[0]
                         electron_charge_pt_residuals[charge_species][ibin].append(
                             float((reco_pt[r] - mc_pt[s]) / mc_pt[s])
                         )
@@ -306,6 +406,68 @@ def main() -> None:
         {name: (data["found"], data["truth"]) for name, data in counts.items()},
         "Tracking efficiency",
     )
+    fig, (truth_ax, reco_ax) = plt.subplots(2, 1, figsize=(7.2, 7.2), sharex=True)
+    for name, data in electron_charge_counts.items():
+        truth_ax.stairs(data["truth"], bins, label=name, linewidth=1.8)
+        reco_ax.stairs(electron_charge_reco_pt[name], bins, label=name, linewidth=1.8)
+    truth_ax.set_ylabel("Stable truth particles / bin")
+    reco_ax.set(xlabel=r"$p_T$ [GeV]", ylabel="Matched reconstructed particles / bin")
+    for ax in (truth_ax, reco_ax):
+        ax.set_yscale("log")
+        ax.grid(alpha=0.25)
+        ax.legend()
+    fig.tight_layout()
+    fig.savefig(args.output / "electron_positron_pt_distributions.png", dpi=160)
+    plt.close(fig)
+    fig, (truth_ax, reco_ax) = plt.subplots(2, 1, figsize=(7.2, 7.2), sharex=True)
+    truth_ax.stairs(scattered_electron_truth_all, bins, label="all lineage-identified", linewidth=1.8)
+    truth_ax.stairs(scattered_electron_truth_accepted, bins, label="within truth acceptance", linewidth=1.8)
+    reco_ax.stairs(scattered_electron_reco_pt, bins, label="matched reconstructed", linewidth=1.8)
+    truth_ax.set_ylabel("Truth DIS electrons / bin")
+    reco_ax.set(xlabel=r"$p_T$ [GeV]", ylabel="Matched reconstructed / bin")
+    for ax in (truth_ax, reco_ax):
+        ax.set_yscale("log")
+        ax.grid(alpha=0.25)
+        ax.legend()
+    fig.tight_layout()
+    fig.savefig(args.output / "dis_scattered_electron_pt.png", dpi=160)
+    plt.close(fig)
+    fig, (truth_ax, reco_ax) = plt.subplots(2, 1, figsize=(7.2, 7.2), sharex=True)
+    truth_ax.stairs(scattered_electron_eta_all, eta_bins, label="all lineage-identified", linewidth=1.8)
+    truth_ax.stairs(scattered_electron_eta_accepted, eta_bins, label="within truth acceptance", linewidth=1.8)
+    reco_ax.stairs(scattered_electron_reco_eta, eta_bins, label="matched reconstructed", linewidth=1.8)
+    truth_ax.set_ylabel("Truth DIS electrons / bin")
+    reco_ax.set(xlabel=r"Pseudorapidity $\eta$", ylabel="Matched reconstructed / bin")
+    for ax in (truth_ax, reco_ax):
+        ax.grid(alpha=0.25)
+        ax.legend()
+    fig.tight_layout()
+    fig.savefig(args.output / "dis_scattered_electron_eta.png", dpi=160)
+    plt.close(fig)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12.0, 4.8), sharex=True, sharey=True)
+    response_max = max(
+        2,
+        int(scattered_electron_truth_eta_pt.max()),
+        int(scattered_electron_reco_eta_pt.max()),
+    )
+    norm = LogNorm(vmin=1, vmax=response_max)
+    truth_mesh = axes[0].pcolormesh(
+        bins, eta_bins, scattered_electron_truth_eta_pt, shading="auto", norm=norm
+    )
+    axes[1].pcolormesh(
+        bins, eta_bins, scattered_electron_reco_eta_pt, shading="auto", norm=norm
+    )
+    axes[0].set_title("Accepted truth DIS electron")
+    axes[1].set_title("Matched reconstructed DIS electron")
+    axes[0].set_ylabel(r"Pseudorapidity $\eta$")
+    for ax in axes:
+        ax.set_xlabel(r"$p_T$ [GeV]")
+        ax.grid(alpha=0.15)
+    fig.colorbar(truth_mesh, ax=axes, label="Electrons / bin")
+    fig.subplots_adjust(left=0.08, right=0.90, bottom=0.12, top=0.90, wspace=0.08)
+    fig.savefig(args.output / "dis_scattered_electron_eta_vs_pt.png", dpi=160)
+    plt.close(fig)
     plot_curves(
         args.output / "electron_positron_tracking_efficiency.png",
         bins,
@@ -313,6 +475,12 @@ def main() -> None:
         "Tracking efficiency",
     )
     plot_curves(args.output / "track_purity.png", bins, {"all charged": (purity_num, purity_den)}, "Matched-track purity")
+    plot_curves(
+        args.output / "dis_scattered_electron_efficiency.png",
+        bins,
+        {"DIS scattered electron": (scattered_electron_found, scattered_electron_truth_accepted)},
+        "DIS electron reconstruction efficiency",
+    )
     if schema["reco_pdg"]:
         plot_curves(args.output / "pid_purity.png", bins, {name: (pid_num[name], pid_den[name]) for name in SPECIES.values()}, "PID purity")
     fig, ax = plt.subplots(figsize=(6.4, 5.4))
@@ -362,6 +530,14 @@ def main() -> None:
             ("tracking_efficiency_charge_separated", name, data["found"], data["truth"])
             for name, data in electron_charge_counts.items()
         ]
+        rows.append(
+            (
+                "dis_scattered_electron_reconstruction_efficiency",
+                "electron",
+                scattered_electron_found,
+                scattered_electron_truth_accepted,
+            )
+        )
         rows.append(("matched_track_purity", "all", purity_num, purity_den))
         if schema["reco_pdg"]:
             rows += [("pid_purity", name, pid_num[name], pid_den[name]) for name in SPECIES.values()]
@@ -369,11 +545,60 @@ def main() -> None:
             value, error = binomial(num, den)
             for i in range(len(bins) - 1):
                 writer.writerow([metric, species, bins[i], bins[i + 1], num[i], den[i], value[i], error[i]])
+    with (args.output / "electron_positron_pt_distributions.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["level", "species", "pt_low", "pt_high", "count"])
+        for species in ELECTRON_CHARGES.values():
+            for level, values in (
+                ("stable_truth", electron_charge_counts[species]["truth"]),
+                ("matched_reconstructed", electron_charge_reco_pt[species]),
+            ):
+                for i in range(len(bins) - 1):
+                    writer.writerow([level, species, bins[i], bins[i + 1], values[i]])
+    with (args.output / "dis_scattered_electron_pt.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["level", "pt_low", "pt_high", "count"])
+        for level, values in (
+            ("lineage_identified_truth", scattered_electron_truth_all),
+            ("truth_in_acceptance", scattered_electron_truth_accepted),
+            ("matched_truth", scattered_electron_found),
+            ("matched_reconstructed", scattered_electron_reco_pt),
+        ):
+            for i in range(len(bins) - 1):
+                writer.writerow([level, bins[i], bins[i + 1], values[i]])
+    with (args.output / "dis_scattered_electron_eta.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["level", "eta_low", "eta_high", "count"])
+        for level, values in (
+            ("lineage_identified_truth", scattered_electron_eta_all),
+            ("truth_in_acceptance", scattered_electron_eta_accepted),
+            ("matched_reconstructed", scattered_electron_reco_eta),
+        ):
+            for i in range(len(eta_bins) - 1):
+                writer.writerow([level, eta_bins[i], eta_bins[i + 1], values[i]])
+    with (args.output / "dis_scattered_electron_eta_vs_pt.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["level", "eta_low", "eta_high", "pt_low", "pt_high", "count"])
+        for level, values in (
+            ("truth_in_acceptance", scattered_electron_truth_eta_pt),
+            ("matched_reconstructed", scattered_electron_reco_eta_pt),
+        ):
+            for i in range(len(eta_bins) - 1):
+                for j in range(len(bins) - 1):
+                    writer.writerow(
+                        [level, eta_bins[i], eta_bins[i + 1], bins[j], bins[j + 1], values[i, j]]
+                    )
 
     summary = {
         "inputs": args.files,
         "schema": schema,
-        "selection": {"generatorStatus": 1, "charged": True, "eta": [args.eta_min, args.eta_max], "min_association_weight": args.min_weight},
+        "selection": {
+            "generatorStatus": 1,
+            "charged": True,
+            "eta": [args.eta_min, args.eta_max],
+            "eta_bins": eta_bins.tolist(),
+            "min_association_weight": args.min_weight,
+        },
         "totals": dict(totals),
         "overall_matched_track_purity": totals["reco_matched"] / totals["reco_accepted"] if totals["reco_accepted"] else math.nan,
         "duplicate_excess_per_matched_truth": (
@@ -386,6 +611,7 @@ def main() -> None:
             "matched_track_purity": "accepted reconstructed charged particles associated to an eligible status-1 charged MC particle",
             "pid_purity": "among accepted reconstructed particles assigned a PDG species, fraction matched to the same true species",
             "duplicate_excess": "number of reconstructed particles beyond the first associated to each eligible truth particle",
+            "dis_scattered_electron": "highest-pT stable electron descended through MC parent links from a status-4 beam electron",
         },
     }
     with (args.output / "summary.json").open("w") as stream:

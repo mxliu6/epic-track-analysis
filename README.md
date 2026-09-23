@@ -68,6 +68,31 @@ Electron and positron results are also separated using the signed truth PDG code
 `electron_positron_pt_resolution_vs_pt.png`, and
 `electron_positron_momentum_resolution_vs_pt.png`. The general species plots keep
 the charge-combined category under the label `electron_or_positron`.
+`electron_positron_pt_distributions.png` shows the stable-truth and
+matched-reconstructed pT spectra separately, with the corresponding bin counts in
+`electron_positron_pt_distributions.csv`.
+
+## DIS-scattered electron identification
+
+The truth DIS electron is identified from MC lineage: start from an incoming beam
+electron (`PDG == 11`, `generatorStatus == 4`), follow the stored MC parent links,
+and select a stable electron (`PDG == 11`, `generatorStatus == 1`) descended from
+that beam particle. If radiation or conversions produce multiple stable electron
+descendants, the highest-pT candidate is selected and the ambiguous event is
+counted in `summary.json`. This avoids confusing unrelated conversion electrons
+with the hard-scattered beam electron.
+
+`dis_scattered_electron_pt.png` contains the truth and matched-reconstructed pT
+spectra, `dis_scattered_electron_efficiency.png` contains its reconstruction
+efficiency versus true pT,
+and `dis_scattered_electron_pt.csv` contains the bin counts.
+
+`dis_scattered_electron_eta.png` contains the truth and matched-reconstructed eta
+spectra. `dis_scattered_electron_eta_vs_pt.png` contains side-by-side accepted
+truth and matched-reconstructed 2-D eta-versus-pT distributions. Their numerical
+bin contents are written to `dis_scattered_electron_eta.csv` and
+`dis_scattered_electron_eta_vs_pt.csv`. Use `--eta-bins` to override the default
+32 bins spanning `-4 < eta < 4`.
 
 ## Definitions
 
