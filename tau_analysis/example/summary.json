@@ -1,0 +1,62 @@
+{
+  "totals": {
+    "detector_secondary_links_excluded": 177689,
+    "events": 2000,
+    "events_with_tau": 2000,
+    "tau_records": 3379,
+    "tau_copies_removed": 1372,
+    "selected_taus": 2007,
+    "taus_without_daughters": 0,
+    "unresolved_descendant_leaves": 0,
+    "direct_daughters": 6431,
+    "stable_daughters": 7547
+  },
+  "tau_generator_status_counts": {
+    "2": 2007,
+    "23": 1075,
+    "44": 297
+  },
+  "validation": {
+    "relation_indices_collection_ids_and_reciprocity": "passed",
+    "histogram_accounting": "passed",
+    "max_direct_four_momentum_residual_GeV": 0.03028173443268045,
+    "decays_residual_above_1e_3_GeV": 376,
+    "max_endpoint_four_momentum_residual_GeV": 0.030281734432684004,
+    "max_direct_charge_residual": 0.0
+  },
+  "inputs": [
+    {
+      "file_id": 0,
+      "path": "bsm_ceu_275x18_100K_wo_PhotonRad_ab_0000.edm4hep.root",
+      "bytes": 1584384965,
+      "root_uuid": "6d741750-4402-11f1-bf08-14cac782beef",
+      "entries": 1000,
+      "MCParticles_collectionID": 2714477136
+    },
+    {
+      "file_id": 1,
+      "path": "bsm_ceu_275x18_100K_wo_PhotonRad_ab_1000.edm4hep.root",
+      "bytes": 1581064939,
+      "root_uuid": "740a9826-43ff-11f1-8d4b-d8bac782beef",
+      "entries": 1000,
+      "MCParticles_collectionID": 2714477136
+    }
+  ],
+  "versions": {
+    "python": "3.9.6",
+    "uproot": "5.6.9",
+    "awkward": "2.8.12",
+    "numpy": "2.0.2",
+    "matplotlib": "3.9.4"
+  },
+  "script_sha256": "044cc10d898d63b183db24a553de496c6ddc80518e04e7207fb81bd13efd7781",
+  "definitions": {
+    "tau": "abs(PDG)==15, generatorStatus!=0, no same-signed tau daughter",
+    "direct": "All immediate generator daughters of selected tau; status 0 excluded",
+    "stable": "Recursive daughters, stop at generatorStatus==1; deduplicate within each tau",
+    "frame": "Stored MCParticles coordinates, no frame transformation",
+    "normalization": "Unweighted particle counts; no acceptance cuts or cross-section normalization",
+    "eta": "asinh(pz/pT); beam-axis eta nonfinite and explicitly accounted",
+    "units": "pT in GeV (c=1)"
+  }
+}

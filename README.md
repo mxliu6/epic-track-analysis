@@ -1,16 +1,21 @@
-# ePIC charged-track performance workflow
+# ePIC physics analysis workflows
 
 This is a ROOT-free first-pass analysis for EICrecon EDM4eic files. It uses the
 `MCParticles`, reconstructed charged-particle, and MC/reconstruction association
 collections stored in the `events` tree.
 
-## 1. Set up on this Mac
+The repository also includes a [tau and decay-daughter analysis](tau_analysis/README.md)
+for MC truth particle IDs, pT, eta, and decay ancestry in EDM4hep files.
+See the [two-file example report](tau_analysis/example/REPORT.md) for plots and validation results.
 
-The current machine is Apple Silicon and has `/usr/bin/python3` (Python 3.9), but
-does not currently have CERN ROOT or the required Python analysis packages.
+## 1. Set up
+
+Use Python 3.9–3.12 on macOS or Linux. Python 3.9 has been tested locally;
+GitHub Actions is configured to test Python 3.10 and 3.12.
 
 ```bash
-cd /Users/mliu/.codex/.chatgpt-projects/g-p-69602c8c645c8191a612ce2b2d83890b
+git clone https://github.com/mxliu6/epic-track-analysis.git
+cd epic-track-analysis
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip

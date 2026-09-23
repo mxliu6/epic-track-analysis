@@ -3,3 +3,17 @@
 __pycache__/
 results/
 track_performance/
+
+# Simulation inputs and machine-local project context
+*.root
+*.hepmc
+*.hepmc3
+*.hepmc.gz
+/sources/
+/AGENTS.md
+/DATA_INVENTORY.md
+.DS_Store
+.env
+.env.*
+!.env.example
+*.py[cod]
