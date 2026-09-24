@@ -1,0 +1,236 @@
+{
+  "totals": {
+    "events": 2000,
+    "taus": 2007,
+    "reco_candidates_all_events": 36265,
+    "duplicate_reco_matches_all_events": 17,
+    "reco_with_multiple_truth_links": 0,
+    "unresolved_generator_leaves": 0,
+    "neutrinos_excluded": 2730,
+    "visible_truth_daughters": 4817,
+    "reco_charged": 2512,
+    "charged_candidates_without_assigned_pid": 1206,
+    "calorimeter_only_charged_truth": 62,
+    "reco_neutral": 787,
+    "invalid_reco_fourvectors": 0,
+    "taus_with_reco": 1998,
+    "taus_all_visible_matched": 1152,
+    "visible_reco_daughters": 3299,
+    "intermediate_generator_matches_omitted": 1
+  },
+  "statistics": {
+    "truth_visible": {
+      "mass_GeV": {
+        "n": 2007,
+        "mean": 0.5624822537508717,
+        "median": 0.6315980782095749,
+        "min": 0.0005109994876245147,
+        "max": 1.7425767981695606
+      },
+      "scalar_pt_GeV": {
+        "n": 2007,
+        "mean": 14.382422596177259,
+        "median": 12.51551132625817,
+        "min": 0.045196916158901417,
+        "max": 55.28735150367288
+      },
+      "vector_pt_GeV": {
+        "n": 2007,
+        "mean": 14.374022753275707,
+        "median": 12.500325085860286,
+        "min": 0.045196916158901417,
+        "max": 55.28735150367288
+      },
+      "angle_deg": {
+        "n": 2007,
+        "mean": 3.0249075510253705,
+        "median": 1.705197160857586,
+        "min": 0.023941937695701607,
+        "max": 78.28178117640381
+      }
+    },
+    "reco_visible": {
+      "mass_GeV": {
+        "n": 1998,
+        "mean": 0.44316329118303294,
+        "median": 0.13957010209560314,
+        "min": 0.0,
+        "max": 3.8603350114672694
+      },
+      "scalar_pt_GeV": {
+        "n": 1998,
+        "mean": 14.074407114372267,
+        "median": 12.083584690275522,
+        "min": 0.0107847070690324,
+        "max": 58.59705836253092
+      },
+      "vector_pt_GeV": {
+        "n": 1998,
+        "mean": 14.068460313152267,
+        "median": 12.075915306307095,
+        "min": 0.0107847070690324,
+        "max": 58.59681511270313
+      },
+      "angle_deg": {
+        "n": 1998,
+        "mean": 3.3508757035449506,
+        "median": 1.9121099598513536,
+        "min": 0.019179248079689633,
+        "max": 89.84062787834944
+      }
+    },
+    "truth_matched_subset": {
+      "mass_GeV": {
+        "n": 1998,
+        "mean": 0.4153649673841384,
+        "median": 0.13957000000000047,
+        "min": 0.0,
+        "max": 1.6603689912183655
+      },
+      "scalar_pt_GeV": {
+        "n": 1998,
+        "mean": 12.723540311673906,
+        "median": 11.087816063472578,
+        "min": 0.045196916158901417,
+        "max": 55.28735150367288
+      },
+      "vector_pt_GeV": {
+        "n": 1998,
+        "mean": 12.717924921964133,
+        "median": 11.087618844838676,
+        "min": 0.045196916158901417,
+        "max": 55.28735150367288
+      },
+      "angle_deg": {
+        "n": 1998,
+        "mean": 3.0325816068848215,
+        "median": 1.8218433949909278,
+        "min": 0.023941937695701607,
+        "max": 37.061258550000915
+      }
+    },
+    "reco_charged": {
+      "mass_GeV": {
+        "n": 1945,
+        "mean": 0.2065388914516627,
+        "median": 0.0005109989314258181,
+        "min": 0.0,
+        "max": 2.9955092294376673
+      },
+      "scalar_pt_GeV": {
+        "n": 1945,
+        "mean": 10.400129989868686,
+        "median": 8.308004941983652,
+        "min": 0.25569160003283714,
+        "max": 53.34470881445025
+      },
+      "vector_pt_GeV": {
+        "n": 1945,
+        "mean": 10.397979567981013,
+        "median": 8.308004941983652,
+        "min": 0.25569160003283714,
+        "max": 53.34470881445025
+      },
+      "angle_deg": {
+        "n": 1945,
+        "mean": 3.5509083757789273,
+        "median": 2.304410741857735,
+        "min": 0.019179248079689633,
+        "max": 37.059048912784036
+      }
+    },
+    "reco_neutral": {
+      "mass_GeV": {
+        "n": 725,
+        "mean": 0.04123739701072722,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 1.6979496570106232
+      },
+      "scalar_pt_GeV": {
+        "n": 725,
+        "mean": 10.886086323063726,
+        "median": 8.749008396662916,
+        "min": 0.005304023447952906,
+        "max": 49.64617863994125
+      },
+      "vector_pt_GeV": {
+        "n": 725,
+        "mean": 10.88461172330374,
+        "median": 8.749008396662916,
+        "min": 0.005304023447952906,
+        "max": 49.64617863994125
+      },
+      "angle_deg": {
+        "n": 725,
+        "mean": 5.087047073885669,
+        "median": 2.2886558318829695,
+        "min": 0.030725527594359446,
+        "max": 89.84062787834944
+      }
+    }
+  },
+  "inputs": [
+    {
+      "file_id": 0,
+      "filename": "bsm_ceu_275x18_100K_wo_PhotonRad_ab_0000.edm4hep.root",
+      "bytes": 1584384965,
+      "root_uuid": "6d741750-4402-11f1-bf08-14cac782beef",
+      "events": 1000
+    },
+    {
+      "file_id": 1,
+      "filename": "bsm_ceu_275x18_100K_wo_PhotonRad_ab_1000.edm4hep.root",
+      "bytes": 1581064939,
+      "root_uuid": "740a9826-43ff-11f1-8d4b-d8bac782beef",
+      "events": 1000
+    }
+  ],
+  "accepted_daughter_multiplicity": {
+    "eta_min": -3.5,
+    "eta_max": 3.5,
+    "strict_boundaries": true,
+    "selection": "Reconstructed eta of previously selected visible constituents; no tau eta or pT cut",
+    "n_taus": 2007,
+    "accepted_daughters": 3296,
+    "rejected_daughters": 3,
+    "multiplicities": {
+      "0": 9,
+      "1": 1107,
+      "2": 561,
+      "3": 261,
+      "4": 62,
+      "5": 6,
+      "6": 1
+    },
+    "pid_accounting": "passed"
+  },
+  "versions": {
+    "uproot": "5.6.9",
+    "awkward": "2.8.12",
+    "numpy": "2.0.2"
+  },
+  "scripts_sha256": {
+    "analyze_visible_taus.py": "d075d281fc02221484d9b693c9b17ed10253302ba4856af5b6dfc3422787e783",
+    "analyze_taus.py": "044cc10d898d63b183db24a553de496c6ddc80518e04e7207fb81bd13efd7781",
+    "daughter_multiplicity.py": "62e1f470bb568be1c85b1563170403a5d46d75730f9a30dc0a9ca3fb1b6b51c5"
+  },
+  "selection": "Last-copy generator taus; status-1 descendants excluding abs(PDG)=12,14,16; MC-assisted association",
+  "reconstruction": "ReconstructedParticles only. Charged: track p with stored reco mass. Neutral: stored E and direction with stored reco mass.",
+  "matching": "Positive weight; best truth per reco; one reco per truth preferring charged then highest weight then lowest index. No weight probability interpretation.",
+  "caveats": [
+    "Not a data-only tau tagger; tau direction and daughter membership use MC truth.",
+    "Neutral candidates are not identified pi0 particles; photons are counted individually, without also adding parent pi0.",
+    "Missing/unmatched daughters are not filled using truth. Kinematic plots have no acceptance cuts; daughter multiplicity/PID plots require strict reconstructed |eta|<3.5. No event weights.",
+    "Intermediate-generator and simulation-secondary associations are omitted; final status-1 matches define the sample.",
+    "A calorimeter-only match to charged truth is retained as a measured neutral candidate under its stored mass hypothesis.",
+    "Split showers/duplicate tracks reduced to one candidate per truth; merging and misassociation can bias observables.",
+    "Visible invariant mass is not the full tau mass because neutrinos are missing.",
+    "Unassigned reconstructed PID (PDG=0) is common; stored mass hypotheses are used, never substituted with truth PID masses."
+  ],
+  "validation": {
+    "object_ids_and_ancestry": "passed",
+    "histogram_accounting": "passed",
+    "spacelike_sums": 0
+  }
+}

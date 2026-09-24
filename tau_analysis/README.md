@@ -62,3 +62,79 @@ Square-root count errors are descriptive Poisson errors; particles from one deca
 
 - [Uproot documentation](https://uproot.readthedocs.io/en/stable/basic.html): ROOT-file reading in Python.
 - [EDM4hep schema](https://github.com/key4hep/EDM4hep/blob/main/edm4hep.yaml): MCParticle momentum, status and parent/daughter relationships.
+
+## Reconstructed visible tau observables
+
+Use the same two input files with the new entry point:
+
+```bash
+.venv/bin/python tau_analysis/analyze_visible_taus.py \
+  "$TAU_DATA_DIR/bsm_ceu_275x18_100K_wo_PhotonRad_ab_0000.edm4hep.root" \
+  "$TAU_DATA_DIR/bsm_ceu_275x18_100K_wo_PhotonRad_ab_1000.edm4hep.root" \
+  --output tau_analysis/results/visible
+```
+
+This computes, per tau, visible invariant mass, scalar sum of daughter pT,
+pT of the vector momentum sum, and the three-dimensional opening angle between
+the truth tau direction and that sum. Neutrinos and antineutrinos are excluded.
+The [visible example report](example/visible/REPORT.md) contains the measured results.
+
+The combined `ReconstructedParticles` collection supplies the detector quantities;
+`ReconstructedParticleAssociations` supplies MC membership. Charged four-vectors
+use track momentum and the **stored reconstructed mass hypothesis**. Neutral
+four-vectors use stored energy and momentum direction with the stored mass
+hypothesis (all selected neutral candidates in this sample have mass zero).
+Energy alone cannot determine a transverse momentum or opening angle: the
+measured direction is required. No truth momentum replaces missing measurements.
+
+Only matches to final status-1 visible descendants enter the nominal sum. A pi0
+contributes through its matched photons, without also adding the parent pi0.
+Intermediate-generator and simulation-secondary matches are omitted and audited.
+One candidate per truth particle is retained, preferring a charged track over
+neutral shower candidates, then higher positive association weight, then lower
+index. Reconstructed candidates first select their highest-weight truth match.
+Weights are not interpreted as calibrated probabilities. This conservative
+prescription can lose split-shower energy and does not resolve merged showers.
+A calorimeter-only candidate matched to charged truth contributes using its stored
+neutral-candidate hypothesis; its count is reported explicitly.
+
+The result is **MC-assisted detector reconstruction**, not an experimentally
+standalone tau tagger. Tau direction and membership are truth labels, while summed
+momenta/energies are reconstructed quantities. Mass depends on reconstructed PID,
+which is often unassigned in these files. Missing neutrinos mean the visible mass
+is not expected to peak at the full tau mass. Missing visible daughters, detector
+resolution and PID hypotheses further affect the spectrum.
+
+Outputs include `observables.csv` (all five levels: full visible truth,
+reconstructed visible, truth of matched subset, reconstructed charged, and
+reconstructed neutral), `constituents.csv` (the actual measured four-vectors),
+`daughter_coverage.csv`, histogram CSVs with accounting, two plot panels,
+`file_audit.csv`, `summary.json`, and `REPORT.md`. Empty reconstructed systems
+remain in the tables with zero sums and undefined mass/angle but are excluded
+from plots and summary statistics. The opening angle uses the truth tau production
+direction in the stored coordinate frame, in degrees; it is not delta-R.
+
+Reference: [EDM4eic reconstructed-particle fields](https://eic.github.io/EDM4eic/classedm4eic_1_1_reconstructed_particle_data.html).
+
+### Accepted daughter counts and PID
+
+The visible-tau script also produces `daughter_multiplicity.png`, requiring
+**−3.5 < reconstructed daughter eta < 3.5**. Counts are per tau and include
+zero-daughter taus. Neutrinos remain excluded. No tau eta or daughter pT cut is
+applied. This is the requested geometric eta window, not a complete detector
+response or efficiency model. Each reconstructed photon is counted individually;
+photons are not combined into pi0 candidates.
+
+For exactly 1, 2, 3, 4 and 5 accepted daughters,
+`daughter_pid_by_multiplicity_reconstructed.png` shows signed reconstructed PDG
+IDs (0 = unassigned). `daughter_pid_by_multiplicity_truth.png` shows the true
+identities of **the same accepted reconstructed particles** for comparison.
+These plots count daughters, not taus: every PID panel integrates to N times the
+number of taus with exactly N accepted daughters. Empty categories are displayed.
+Counts above five, if present, remain in the multiplicity histogram and tables.
+
+Numerical outputs: `accepted_daughter_counts.csv` (per tau),
+`daughter_multiplicity.csv`, `accepted_constituents.csv` (including reconstructed
+eta), and `daughter_pid_by_multiplicity.csv`. The mass, pT and angle plots retain
+their original selection; the eta cut here applies to the new multiplicity/PID
+plots only.
